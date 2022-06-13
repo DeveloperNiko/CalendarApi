@@ -5,8 +5,8 @@ namespace App\Services\v1;
 
 
 use App\Models\Calendar;
-use DateInterval;
-use DateTime;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class CalendarService
 {
@@ -29,73 +29,83 @@ class CalendarService
     }
 
 
-    public function countMinutesBetweenDates($to, $from)
+    public function countDateEnd($dateStart, $duration)
     {
-        $to = strtotime($to);
-        $from = strtotime($from);
+        $date = new Carbon($dateStart);
+        $dateStart = $date->parse($dateStart)->format('Y-m-d H:i');
+        $dateEnd = $date->createFromFormat('Y-m-d H:i',$dateStart)->addMinutes($duration);
 
-        $seconds = $to - $from;
-
-        return floor($seconds / 60);
+        if(Auth::check()){
+        return $dateEnd->toDateTimeString();
+        }
+        return $dateEnd->toDateString();
     }
 
-    public function uncheckUserDate($dateStart,$dateEnd){
-        $dateEnd = explode(' ',$dateEnd);
-        $dateStart = explode(' ',$dateStart);
-        $newDate['date_end'] = $dateEnd[0] . ' 00:00';
-        $newDate['date_start'] = $dateStart[0] . ' 00:00';
+    public function uncheckUserDate($newTask){
+        $dateEnd = explode(' ',$newTask['date_end']);
+        $dateStart = explode(' ',$newTask['date_start']);
+        $newTask['date_end'] = $dateEnd[0];
+        $newTask['date_start'] = $dateStart[0];
 
-        if($newDate['date_start'] == $newDate['date_end']){
-            $date = new DateTime($newDate['date_start']);
-            $date->add(new DateInterval('PT' . 1440 . 'M'));
-            $newDate['date_end'] = $date->format('Y-m-d H:i');
+        if($newTask['date_start'] == $newTask['date_end']) {
+            $newTask['date_end'] = $this->countDateEnd($newTask['date_end'],1440);
         }
 
-        $resultDates = [
-            'date_end'=>$newDate['date_end'],
-            'date_start'=>$newDate['date_start']
-        ];
-        return $resultDates;
+        return $newTask;
     }
 
     public function setDate($updatedField, $calendarEvent)
     {
-        if (!array_key_exists('duration', $updatedField)) {
+        $dateStart = $calendarEvent['date_start'];
+        $dateEnd = $calendarEvent['date_end'];
 
-            if (array_key_exists('date_start', $updatedField) && array_key_exists('date_end', $updatedField)) {
-                $updatedField['duration'] = $this->countMinutesBetweenDates($updatedField['date_end'], $updatedField['date_start']);
-            } elseif (array_key_exists('date_start', $updatedField) && !array_key_exists('date_end', $updatedField)) {
-                $updatedField['duration'] = $this->countMinutesBetweenDates($calendarEvent['date_end'], $updatedField['date_start']);
-            } elseif (!array_key_exists('date_start', $updatedField) && array_key_exists('date_end', $updatedField)) {
-                $updatedField['duration'] = $this->countMinutesBetweenDates($updatedField['date_end'], $calendarEvent['date_start']);
-            }
-        } else {
-            $dateStart = (array_key_exists('date_start', $updatedField)) ? $updatedField['date_start'] : $calendarEvent['date_start'];
-            $newDate = new DateTime($dateStart);
-            $newDate->add(new DateInterval('PT' . $updatedField['duration'] . 'M'));
-            $updatedField['date_end'] = $newDate->format('Y-m-d H:i');
-
+        if (array_key_exists('date_start', $updatedField)) {
+            $dateStart = $updatedField['date_start'];
         }
+        if (array_key_exists('date_end', $updatedField)) {
+            $dateEnd = $updatedField['date_end'];
+        }
+
+        if (array_key_exists('duration', $updatedField)) {
+            $updatedField['date_end'] = $this->countDateEnd($dateStart,$updatedField['duration']);
+            return $updatedField;
+        }
+
+        $current = Carbon::now();
+        $date = Carbon::parse($dateEnd);
+        $updatedField['duration'] = $date->diffInMinutes($current);
+        $updatedField['date_end'] = $this->countDateEnd($dateStart,$calendarEvent['duration']);
+
         return $updatedField;
     }
 
     public function getError($id)
     {
-        if ($id == 1) {
-            $error = [
-                'message' => 'You can\'t update events that are less than 3 hours away'
-            ];
-        } elseif ($id == 2) {
-            $error = [
-                'message' => 'Dates entered incorrectly'
-            ];
-        } elseif ($id == 3){
-            $error = [
-                'message' => 'You can\'t delete events that are less than 3 hours away'
-            ];
+        switch ($id){
+            case '1' :
+                $error = [
+                    'message' => 'You can\'t update events that are less than 3 hours away'
+                ];
+                break;
+            case '2' :
+                $error = [
+                    'message' => 'Dates entered incorrectly'
+                ];
+                break;
+            case '3' :
+                $error = [
+                    'message' => 'You can\'t delete events that are less than 3 hours away'
+                ];
         }
 
         return json_encode($error);
+    }
+
+    public function getDifferenceTime($time)
+    {
+       $diffTime = Carbon::parse($time)->diffInHours(Carbon::now());
+
+        return $diffTime;
     }
 
 }

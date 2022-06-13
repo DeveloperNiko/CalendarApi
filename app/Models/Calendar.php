@@ -10,6 +10,8 @@ class Calendar extends Model
 {
     use HasFactory;
 
+    const LIMIT_HOURS = 3;
+
     protected $fillable = [
         'date_start',
         'date_end',

@@ -17,7 +17,7 @@ class CreateRequest extends FormRequest
     {
         return [
             'date_start'=>'date_format:Y-m-d H:i|required',
-            'date_end'=>'date_format:Y-m-d H:i|required',
+            'date_end'=>'date_format:Y-m-d H:i',
             'title'=>'string|max:100|required'
         ];
     }
@@ -33,10 +33,7 @@ class CreateRequest extends FormRequest
 
     public function check()
     {
-        if (Auth::check()) {
             return true;
-        }
-        return false;
     }
 
 }
