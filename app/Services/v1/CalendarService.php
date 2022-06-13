@@ -6,6 +6,7 @@ namespace App\Services\v1;
 
 use App\Http\Resources\CalendarResource;
 use App\Models\Calendar;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
@@ -23,8 +24,8 @@ class CalendarService
     public function handleList(array $request)
     {
         $calendarEvents = $this->calendarModel
-            ->where('date_start', '>', $request['date_start'])
-            ->where('date_end', '<', $request['date_end'])
+            ->where('date', '>', $request['date_start'])
+            ->where('date', '<', $request['date_end'])
             ->get();
 
         return $calendarEvents;
@@ -35,23 +36,15 @@ class CalendarService
     {
         $date = new Carbon($dateStart);
         $dateStart = $date->parse($dateStart)->format('Y-m-d H:i');
-        $dateEnd = $date->createFromFormat('Y-m-d H:i',$dateStart)->addMinutes($duration);
+        $dateEnd = $date->createFromFormat('Y-m-d H:i', $dateStart)->addMinutes($duration);
 
-        if(Auth::check()){
         return $dateEnd->toDateTimeString();
-        }
-        return $dateEnd->toDateString();
+
     }
 
-    public function uncheckUserDate($newTask){
-        $dateEnd = explode(' ',$newTask['date_end']);
-        $dateStart = explode(' ',$newTask['date_start']);
-        $newTask['date_end'] = $dateEnd[0];
-        $newTask['date_start'] = $dateStart[0];
+    public function uncheckUserDate($newTask)
+    {
 
-        if($newTask['date_start'] == $newTask['date_end']) {
-            $newTask['date_end'] = $this->countDateEnd($newTask['date_end'],1440);
-        }
 
         return $newTask;
     }
@@ -69,21 +62,21 @@ class CalendarService
         }
 
         if (array_key_exists('duration', $updatedField)) {
-            $updatedField['date_end'] = $this->countDateEnd($dateStart,$updatedField['duration']);
+            $updatedField['date_end'] = $this->countDateEnd($dateStart, $updatedField['duration']);
             return $updatedField;
         }
 
         $current = Carbon::now();
         $date = Carbon::parse($dateEnd);
         $updatedField['duration'] = $date->diffInMinutes($current);
-        $updatedField['date_end'] = $this->countDateEnd($dateStart,$calendarEvent['duration']);
+        $updatedField['date_end'] = $this->countDateEnd($dateStart, $calendarEvent['duration']);
 
         return $updatedField;
     }
 
     public function getError($id)
     {
-        switch ($id){
+        switch ($id) {
             case '1' :
                 $error = [
                     'message' => 'You can\'t update events that are less than 3 hours away'
@@ -98,6 +91,12 @@ class CalendarService
                 $error = [
                     'message' => 'You can\'t delete events that are less than 3 hours away'
                 ];
+                break;
+            case '4' :
+                $error = [
+                    'message' => 'Event on this time already exist'
+                ];
+                break;
         }
 
         return json_encode($error);
@@ -105,45 +104,43 @@ class CalendarService
 
     public function getDifferenceTime($time)
     {
-       $diffTime = Carbon::parse($time)->diffInHours(Carbon::now());
+        $diffTime = Carbon::parse($time)->diffInHours(Carbon::now());
 
         return $diffTime;
     }
 
-    public function createEvent($fields)
+    public function createEvent($requestData, $token = null)
     {
-        $newTask = $fields;
-        $newTask['date_end']= $this->countDateEnd($newTask['date_start'], $newTask['duration'] );
-        if(!Auth::check()){
-            $newTask = $this->uncheckUserDate($newTask);
+        if ($token) {
+            $requestData = Calendar::create($requestData);
+            return new CalendarResource($requestData);
         }
-        $newTask = Calendar::create($newTask);
-
-        return new CalendarResource($newTask);
+        $calendarEvents = $this->checkCurrentEvents($requestData);
+        if (!$calendarEvents) {
+            $requestData = Calendar::create($requestData);
+            return new CalendarResource($requestData);
+        }
+        return $this->getError(4);
     }
 
-    public function updateEvent($fields,$id)
+    public function updateEvent($fields, $id)
     {
         $calendarEvent = Calendar::find($id);
-        $diffTime = $this->getDifferenceTime($calendarEvent->date_start);
+        $diffTime = $this->getDifferenceTime($calendarEvent->date);
 
         if ($diffTime <= Calendar::LIMIT_HOURS) {
             return $this->getError(1);
         }
 
-        $updatedField = $this->setDate($fields, $calendarEvent);
-        if ($updatedField['duration'] <= 0) {
-            return $this->getError(2);
-        }
-
-        Calendar::where('id', $id)->update($updatedField);
+        Calendar::where('id', $id)->update($fields);
 
         return new CalendarResource($calendarEvent->refresh());
     }
 
-    public function destroyEvent($id){
+    public function destroyEvent($id)
+    {
         $calendarEvent = Calendar::findOrFail($id);
-        $diffTime = $this->getDifferenceTime($calendarEvent->date_start);
+        $diffTime = $this->getDifferenceTime($calendarEvent->date);
 
         if ($diffTime <= Calendar::LIMIT_HOURS) {
             return $this->getError(3);
@@ -151,6 +148,17 @@ class CalendarService
         Calendar::destroy([$id]);
 
         return ['success' => 'You have successfully deleted the entry from the ID ' . $id];
+    }
+
+    public function checkCurrentEvents($requestData)
+    {
+        $eventsEnd = $this->countDateEnd($requestData['date'], $requestData['duration']);
+        $calendarEvents = $this->calendarModel
+            ->where('date', '>=', $requestData['date'])
+            ->where('date', '<=', $eventsEnd)
+            ->get();
+
+        return $calendarEvents;
     }
 
 }

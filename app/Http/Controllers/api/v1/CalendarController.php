@@ -43,7 +43,8 @@ class CalendarController extends Controller
      */
     public function create(CreateRequest $createRequest)
     {
-       return $this->calendarService->createEvent($createRequest->all());
+
+       return $this->calendarService->createEvent($createRequest->all(),$createRequest->bearerToken());
     }
 
     /**

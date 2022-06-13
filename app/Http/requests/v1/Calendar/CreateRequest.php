@@ -16,8 +16,8 @@ class CreateRequest extends FormRequest
     public function rules()
     {
         return [
-            'date_start'=>'date_format:Y-m-d H:i|required',
-            'date_end'=>'date_format:Y-m-d H:i',
+            'date'=>'date_format:Y-m-d H:i|required',
+            'duration'=>'int|required',
             'title'=>'string|max:100|required'
         ];
     }

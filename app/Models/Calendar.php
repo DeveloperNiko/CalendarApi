@@ -13,8 +13,7 @@ class Calendar extends Model
     const LIMIT_HOURS = 3;
 
     protected $fillable = [
-        'date_start',
-        'date_end',
+        'date',
         'title',
         'duration',
         'description',

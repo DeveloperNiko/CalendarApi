@@ -27,7 +27,7 @@ class UpdateRequest extends FormRequest
      */
     public function authorize()
     {
-        if (Auth::check()) {
+        if($this->bearerToken()){
             return true;
         }
         return false;
