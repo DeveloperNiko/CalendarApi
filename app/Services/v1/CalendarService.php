@@ -4,8 +4,10 @@
 namespace App\Services\v1;
 
 
+use App\Http\Resources\CalendarResource;
 use App\Models\Calendar;
 use Carbon\Carbon;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
 
 class CalendarService
@@ -18,7 +20,7 @@ class CalendarService
         $this->calendarModel = $calendar;
     }
 
-    public function handleShow(array $request)
+    public function handleList(array $request)
     {
         $calendarEvents = $this->calendarModel
             ->where('date_start', '>', $request['date_start'])
@@ -106,6 +108,49 @@ class CalendarService
        $diffTime = Carbon::parse($time)->diffInHours(Carbon::now());
 
         return $diffTime;
+    }
+
+    public function createEvent($fields)
+    {
+        $newTask = $fields;
+        $newTask['date_end']= $this->countDateEnd($newTask['date_start'], $newTask['duration'] );
+        if(!Auth::check()){
+            $newTask = $this->uncheckUserDate($newTask);
+        }
+        $newTask = Calendar::create($newTask);
+
+        return new CalendarResource($newTask);
+    }
+
+    public function updateEvent($fields,$id)
+    {
+        $calendarEvent = Calendar::find($id);
+        $diffTime = $this->getDifferenceTime($calendarEvent->date_start);
+
+        if ($diffTime <= Calendar::LIMIT_HOURS) {
+            return $this->getError(1);
+        }
+
+        $updatedField = $this->setDate($fields, $calendarEvent);
+        if ($updatedField['duration'] <= 0) {
+            return $this->getError(2);
+        }
+
+        Calendar::where('id', $id)->update($updatedField);
+
+        return new CalendarResource($calendarEvent->refresh());
+    }
+
+    public function destroyEvent($id){
+        $calendarEvent = Calendar::findOrFail($id);
+        $diffTime = $this->getDifferenceTime($calendarEvent->date_start);
+
+        if ($diffTime <= Calendar::LIMIT_HOURS) {
+            return $this->getError(3);
+        }
+        Calendar::destroy([$id]);
+
+        return ['success' => 'You have successfully deleted the entry from the ID ' . $id];
     }
 
 }

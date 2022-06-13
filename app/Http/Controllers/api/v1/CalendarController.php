@@ -20,7 +20,6 @@ class CalendarController extends Controller
      */
     protected $calendarService;
 
-
     public function __construct(CalendarService $calendarService)
     {
         $this->calendarService = $calendarService;
@@ -32,9 +31,9 @@ class CalendarController extends Controller
      * @param ShowRequest $showRequest
      * @return \Illuminate\Http\Response
      */
-    public function show(ShowRequest $showRequest)
+    public function list(ShowRequest $showRequest)
     {
-        return $this->calendarService->handleShow($showRequest->all());
+        return $this->calendarService->handleList($showRequest->all());
     }
 
     /**
@@ -44,14 +43,7 @@ class CalendarController extends Controller
      */
     public function create(CreateRequest $createRequest)
     {
-        $newTask = $createRequest->all();
-        $newTask['date_end']= $this->calendarService->countDateEnd($newTask['date_start'], $newTask['duration'] );
-        if(!Auth::check()){
-            $newTask = $this->calendarService->uncheckUserDate($newTask);
-        }
-        $newTask = Calendar::create($newTask);
-
-        return new CalendarResource($newTask);
+       return $this->calendarService->createEvent($createRequest->all());
     }
 
     /**
@@ -63,21 +55,7 @@ class CalendarController extends Controller
      */
     public function update(UpdateRequest $updateRequest, $id)
     {
-        $calendarEvent = Calendar::find($id);
-        $diffTime = $this->calendarService->getDifferenceTime($calendarEvent->date_start);
-
-        if ($diffTime <= Calendar::LIMIT_HOURS) {
-            return $this->calendarService->getError(1);
-        }
-
-        $updatedField = $this->calendarService->setDate($updateRequest->all(), $calendarEvent);
-        if ($updatedField['duration'] <= 0) {
-            return $this->calendarService->getError(2);
-        }
-
-        Calendar::where('id', $id)->update($updatedField);
-
-        return new CalendarResource($calendarEvent->refresh());
+        return $this->calendarService->updateEvent($updateRequest->all(),$id);
     }
 
     /**
@@ -89,16 +67,7 @@ class CalendarController extends Controller
      */
     public function destroy(DestroyRequest $destroyRequest,$id)
     {
-        $calendarEvent = Calendar::findOrFail($id);
-        $diffTime = $this->calendarService->getDifferenceTime($calendarEvent->date_start);
-
-        if ($diffTime <= Calendar::LIMIT_HOURS) {
-            return $this->calendarService->getError(3);
-        }
-        Calendar::destroy([$id]);
-
-        return ['success' => 'You have successfully deleted the entry from the ID ' . $id];
-
+        return $this->calendarService->destroyEvent($id);
     }
 
 }

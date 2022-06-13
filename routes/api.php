@@ -21,6 +21,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 
 Route::prefix('/v1/calendar')->name('triptypes.')->group(function () {
-    Route::get('/', [CalendarController::class, 'show'])->name('show');
+    Route::get('/', [CalendarController::class, 'list'])->name('show');
 //    Route::get('/{id}', [CalendarController::class, 'details'])->name('show');
 });
